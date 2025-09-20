@@ -18,10 +18,42 @@ async function exportCollection(colRef, folderPath) {
   const snapshot = await colRef.get();
   const colName = colRef.id;
 
-  const data = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
+  // Hàm chuyển đổi timestamp sang chuỗi ngày giờ
+  function convertTimestamps(obj) {
+    if (Array.isArray(obj)) {
+      return obj.map(convertTimestamps);
+    } else if (obj && typeof obj === "object") {
+      const newObj = {};
+      for (const key in obj) {
+        const val = obj[key];
+        if (
+          val &&
+          typeof val === "object" &&
+          typeof val._seconds === "number" &&
+          typeof val._nanoseconds === "number"
+        ) {
+          // Chuyển đổi sang chuỗi ngày giờ quốc tế UTC+7
+          const date = new Date(
+            val._seconds * 1000 + Math.floor(val._nanoseconds / 1e6)
+          );
+          newObj[key] =
+            date.toLocaleString("en-US", {
+              timeZone: "Asia/Bangkok",
+              hour12: true,
+            }) + " UTC+7";
+        } else {
+          newObj[key] = convertTimestamps(val);
+        }
+      }
+      return newObj;
+    }
+    return obj;
+  }
+
+  const data = snapshot.docs.map((doc) => {
+    const raw = { id: doc.id, ...doc.data() };
+    return convertTimestamps(raw);
+  });
 
   // Lưu JSON top-level cho collection
   fs.writeFileSync(
